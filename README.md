@@ -1,4 +1,4 @@
-# TestBasicoMobile
+# Automatización de pruebas Mobile en Ruby con iOS y Android
 
 Este proyecto contiene una suite de pruebas automatizadas para aplicaciones móviles Android e iOS usando Ruby, Cucumber y Appium.
 
