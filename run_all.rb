@@ -1,4 +1,5 @@
 require 'open3'
+$VERBOSE = nil
 
 # Colores ANSI
 COLOR_RESET = "\e[0m"
@@ -24,7 +25,9 @@ def run_tests(platform, port)
   puts "#{platform == 'android' ? COLOR_GREEN : COLOR_YELLOW}🚀 INICIANDO PRUEBAS #{platform.upcase} EN PUERTO #{port}#{COLOR_RESET}"
   puts "#{line}"
 
-  cmd = "APPIUM_PORT=#{port} PLATFORM=#{platform} bundle exec cucumber"
+  cmd = "APPIUM_PORT=#{port} PLATFORM=#{platform} bundle exec cucumber --format pretty --format AllureCucumber::CucumberFormatter --out=allure-results/#{platform}"
+  json_output = "logs/#{platform}_results.json"
+  cmd += " --format json --out #{json_output}"
   Open3.popen2e(cmd) do |stdin, stdout_err, wait_thr|
     File.open("logs/#{platform}.log", 'w') do |log_file|
       log_prefix = platform == 'android' ? '[ANDROID]' : '[IOS]'
@@ -41,7 +44,6 @@ def run_tests(platform, port)
         log_file.puts formatted_line
       end
 
-      # Imprime todo el bloque después de terminar para evitar entremezclar salidas
       output_lines.each do |line|
         next if line.strip.empty?
 
@@ -50,7 +52,6 @@ def run_tests(platform, port)
         puts "#{color}#{line}#{COLOR_RESET}"
       end
 
-      # Extraer resumen final de resultados
       summary_lines = output_lines.select { |l| l.match?(/scenarios? \(.+\)/i) || l.match?(/steps? \(.+\)/i) }
       summary_header = "#{log_prefix} 🧾 RESUMEN DE RESULTADOS"
       summary_block = [summary_header] + summary_lines
@@ -70,7 +71,6 @@ def run_tests(platform, port)
   puts line
 end
 
-# Lanza ambos en paralelo
 threads = []
 
 threads << Thread.new do
@@ -87,7 +87,6 @@ end
 
 threads.each(&:join)
 
-# Resumen global
 def extract_summary(path)
   File.readlines(path).select { |line| line.match?(/scenarios? \(.+\)/i) || line.match?(/steps? \(.+\)/i) }
 end
@@ -97,13 +96,55 @@ ios_summary = extract_summary('logs/ios.log')
 
 puts "\n" + ("=" * 60)
 puts "📊 RESUMEN GLOBAL DE RESULTADOS"
-puts ("=" * 60)
+puts("=" * 60)
 android_color = android_summary.any? { |l| l.include?("failed") } ? COLOR_RED : COLOR_GREEN
 ios_color = ios_summary.any? { |l| l.include?("failed") } ? COLOR_RED : COLOR_YELLOW
 
 puts "#{android_color}[ANDROID]#{COLOR_RESET} #{android_summary.join.strip}"
 puts "#{ios_color}[IOS]#{COLOR_RESET} #{ios_summary.join.strip}"
-puts ("=" * 60)
-
+puts("=" * 60)
 puts "\n✅ ¡Ejecución completa para Android e iOS!"
 puts "📝 Revisa los logs en la carpeta /logs"
+
+require 'report_builder'
+
+android_json = 'logs/android_results.json'
+ios_json = 'logs/ios_results.json'
+
+android_exist = File.exist?(android_json) && !File.zero?(android_json)
+ios_exist = File.exist?(ios_json) && !File.zero?(ios_json)
+
+File.write(android_json, '[]') unless android_exist
+File.write(ios_json, '[]') unless ios_exist
+
+if android_exist
+  ReportBuilder.configure do |config|
+    config.input_path = android_json
+    config.report_path = 'logs/Report_Android'
+    config.report_types = [:html]
+    config.report_title = 'Reporte Android'
+    config.color = 'green'
+    config.additional_info = {
+      'Plataforma' => 'Android',
+      'Ejecutado en' => Time.now.strftime('%Y-%m-%d %H:%M:%S')
+    }
+  end
+  ReportBuilder.build_report
+  puts "📄 Reporte Android generado en: logs/Report_Android.html"
+end
+
+if ios_exist
+  ReportBuilder.configure do |config|
+    config.input_path = ios_json
+    config.report_path = 'logs/Report_iOS'
+    config.report_types = [:html]
+    config.report_title = 'Reporte iOS'
+    config.color = 'yellow'
+    config.additional_info = {
+      'Plataforma' => 'iOS',
+      'Ejecutado en' => Time.now.strftime('%Y-%m-%d %H:%M:%S')
+    }
+  end
+  ReportBuilder.build_report
+  puts "📄 Reporte iOS generado en: logs/Report_iOS.html"
+end

@@ -1,4 +1,4 @@
-Feature: Debug Test
+Feature: Login Test
 
   Scenario: Verify user can enter text and submit
     Given the user is on the login page

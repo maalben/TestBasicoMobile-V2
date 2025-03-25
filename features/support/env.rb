@@ -1,5 +1,6 @@
 require 'appium_lib'
 require 'cucumber'
+require 'allure-cucumber'
 
 def appium_caps
   platform = ENV['PLATFORM'] || 'android'
