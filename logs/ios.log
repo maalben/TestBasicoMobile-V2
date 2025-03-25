@@ -1,0 +1,18 @@
+============================================================
+[IOS] 🚀 INICIANDO PRUEBAS IOS EN PUERTO 4725
+============================================================
+[IOS] Using the default profile...
+[IOS] Feature: Debug Test
+[IOS] 
+[IOS] Scenario: Verify user can enter text and submit                # features/features/login.feature:3
+[IOS] Given the user is on the login page                          # features/step_definitions/login_steps.rb:11
+[IOS] When the user enters "standard_user" into the username field # features/step_definitions/login_steps.rb:16
+[IOS] And the user enters "secret_sauce" into the password field   # features/step_definitions/login_steps.rb:20
+[IOS] And the user clicks the login button                         # features/step_definitions/login_steps.rb:24
+[IOS] Then the user should see the home page                       # features/step_definitions/login_steps.rb:28
+[IOS] 
+[IOS] 1 scenario (1 passed)
+[IOS] 5 steps (5 passed)
+[IOS] 0m8.998s
+[IOS] ✅ FINALIZADAS PRUEBAS IOS
+============================================================
