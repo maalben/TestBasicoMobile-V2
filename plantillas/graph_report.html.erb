@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>📊 Resumen de Pruebas Mobile (Android + iOS)</title>
+  <style>
+      body {
+          font-family: Arial, sans-serif;
+          background: #f9f9f9;
+          margin: 20px;
+      }
+      h1 { text-align: center; color: #333; }
+      h2 { margin-top: 40px; }
+      .platform-title { color: #2e7d32; }
+      .platform-title.ios { color: #ef6c00; }
+      table {
+          border-collapse: collapse;
+          width: 100%;
+          margin-bottom: 40px;
+          background: #fff;
+      }
+      th, td {
+          border: 1px solid #ccc;
+          padding: 10px;
+          text-align: left;
+      }
+      th {
+          background: #eee;
+      }
+      .passed { color: green; font-weight: bold; }
+      .failed { color: red; font-weight: bold; }
+      .chart-container {
+          width: 400px;
+          display: inline-block;
+          margin: 20px;
+      }
+      .charts-wrapper {
+          display: flex;
+          justify-content: center;
+          flex-wrap: wrap;
+      }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<h1>📊 Resumen de Pruebas Mobile (Android + iOS)</h1>
+<p><strong>Proyecto:</strong> TestBasicoMobile</p>
+<p><strong>Fecha:</strong> <%= Time.now.strftime('%Y-%m-%d %H:%M:%S') %></p>
+
+<% require 'json' %>
+<% android_data = File.exist?('logs/android_results.json') ? JSON.parse(File.read('logs/android_results.json')) : [] %>
+<% ios_data     = File.exist?('logs/ios_results.json')     ? JSON.parse(File.read('logs/ios_results.json'))     : [] %>
+
+<% android_features, android_scenarios, android_passed = count_summary(android_data) %>
+<% ios_features, ios_scenarios, ios_passed = count_summary(ios_data) %>
+
+<div class="charts-wrapper">
+  <div class="chart-container">
+    <canvas id="androidChart"></canvas>
+  </div>
+  <div class="chart-container">
+    <canvas id="iosChart"></canvas>
+  </div>
+</div>
+
+<h2 class="platform-title">Android</h2>
+<p><strong>Total Features:</strong> <%= android_features %></p>
+<p><strong>Passed Scenarios:</strong> <%= android_passed %> / <%= android_scenarios %></p>
+
+<table>
+  <tr>
+    <th>Feature</th>
+    <th>Scenario</th>
+    <th>Status</th>
+    <th>Steps</th>
+  </tr>
+  <% android_data.each do |feature| %>
+    <% feature["elements"]&.each do |scenario| %>
+      <tr>
+        <td><%= feature["name"] %></td>
+        <td><%= scenario["name"] %></td>
+        <td>
+          <% status = scenario["steps"].all? { |s| s["result"]["status"] == "passed" } ? "passed" : "failed" %>
+          <span class="<%= status %>"><%= status %></span>
+        </td>
+        <td>
+          <ul>
+            <% scenario["steps"].each do |step| %>
+              <li>
+                <%= step["keyword"].strip %> <%= step["name"] %>
+                (<%= step["result"]["status"] %>
+                <% if step["result"]["status"] == "failed" %>
+                  <br>
+                  <strong>❌ Error:</strong> <%= step["result"]["error_message"]&.gsub("\n", "<br>") || 'Sin detalles' %>
+                <% end %>)
+              </li>
+            <% end %>
+          </ul>
+        </td>
+      </tr>
+    <% end %>
+  <% end %>
+</table>
+
+<h2 class="platform-title ios">iOS</h2>
+<p><strong>Total Features:</strong> <%= ios_features %></p>
+<p><strong>Passed Scenarios:</strong> <%= ios_passed %> / <%= ios_scenarios %></p>
+
+<table>
+  <tr>
+    <th>Feature</th>
+    <th>Scenario</th>
+    <th>Status</th>
+    <th>Steps</th>
+  </tr>
+  <% ios_data.each do |feature| %>
+    <% feature["elements"]&.each do |scenario| %>
+      <tr>
+        <td><%= feature["name"] %></td>
+        <td><%= scenario["name"] %></td>
+        <td>
+          <% status = scenario["steps"].all? { |s| s["result"]["status"] == "passed" } ? "passed" : "failed" %>
+          <span class="<%= status %>"><%= status %></span>
+        </td>
+        <td>
+          <ul>
+            <% scenario["steps"].each do |step| %>
+              <li>
+                <%= step["keyword"].strip %> <%= step["name"] %>
+                (<%= step["result"]["status"] %>)
+              </li>
+            <% end %>
+          </ul>
+        </td>
+      </tr>
+    <% end %>
+  <% end %>
+</table>
+
+<script>
+    const androidChart = new Chart(document.getElementById("androidChart"), {
+        type: 'doughnut',
+        data: {
+            labels: ['Passed', 'Failed'],
+            datasets: [{
+                label: 'Android',
+                data: [<%= android_passed %>, <%= android_scenarios - android_passed %>],
+                backgroundColor: ['#2e7d32', '#e53935']
+            }]
+        }
+    });
+
+    const iosChart = new Chart(document.getElementById("iosChart"), {
+        type: 'doughnut',
+        data: {
+            labels: ['Passed', 'Failed'],
+            datasets: [{
+                label: 'iOS',
+                data: [<%= ios_passed %>, <%= ios_scenarios - ios_passed %>],
+                backgroundColor: ['#ef6c00', '#e53935']
+            }]
+        }
+    });
+</script>
+</body>
+</html>
