@@ -30,11 +30,19 @@ bundle install
 ```bash
 PLATFORM=android APPIUM_PORT=4723 bundle exec cucumber
 ```
+Ejecutar individual con reporte.
+```bash
+PLATFORM=android APPIUM_PORT=4723 ruby run_all.rb
+```
 
 ### ✅ Solo iOS
 
 ```bash
 PLATFORM=ios APPIUM_PORT=4725 bundle exec cucumber
+```
+Ejecutar individual con reporte.
+```bash
+PLATFORM=ios APPIUM_PORT=4725 ruby run_all.rb
 ```
 
 ---
