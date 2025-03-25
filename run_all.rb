@@ -1,26 +1,33 @@
 require 'open3'
 require 'json'
 require 'erb'
+require 'fileutils'
 $VERBOSE = nil
 
-# Colores ANSI
-COLOR_RESET = "\e[0m"
-COLOR_GREEN = "\e[32m"
-COLOR_YELLOW = "\e[33m"
-COLOR_RED = "\e[31m"
-
-# Crear carpeta de logs
-Dir.mkdir('logs') unless Dir.exist?('logs')
-
+# ✅ MÉTODO PARA CONTAR RESUMEN DE FEATURES Y ESCENARIOS
 def count_summary(data)
   total_features = data.size
   total_scenarios = data.sum { |f| f["elements"]&.count || 0 }
   passed = data.sum do |f|
-    f["elements"]&.count { |s| s["steps"].all? { |step| step["result"]["status"] == "passed" } } || 0
+    f["elements"].count { |s| s["steps"].all? { |step| step["result"]["status"] == "passed" } }
   end
   [total_features, total_scenarios, passed]
 end
 
+# Colores
+COLOR_RESET  = "\e[0m"
+COLOR_GREEN  = "\e[32m"
+COLOR_YELLOW = "\e[33m"
+COLOR_RED    = "\e[31m"
+
+# Asegurar carpeta de logs
+FileUtils.mkdir_p('logs')
+FileUtils.mkdir_p('allure-results/android')
+FileUtils.mkdir_p('allure-results/ios')
+
+# ======================
+# Lanzar servidor Appium
+# ======================
 def start_appium(port, log_file)
   puts "🔄 Iniciando Appium en el puerto #{port}..."
   Open3.popen2e("appium --port #{port}") do |stdin, stdout_err, wait_thr|
@@ -33,105 +40,99 @@ def start_appium(port, log_file)
   end
 end
 
+# ======================
+# Ejecutar pruebas
+# ======================
 def run_tests(platform, port)
   line = "=" * 60
+  log_prefix = platform == 'android' ? '[ANDROID]' : '[IOS]'
+  color_prefix = platform == 'android' ? COLOR_GREEN : COLOR_YELLOW
+
   puts "\n#{line}"
-  puts "#{platform == 'android' ? COLOR_GREEN : COLOR_YELLOW}🚀 INICIANDO PRUEBAS #{platform.upcase} EN PUERTO #{port}#{COLOR_RESET}"
-  puts line
+  puts "#{color_prefix}🚀 INICIANDO PRUEBAS #{platform.upcase} EN PUERTO #{port}#{COLOR_RESET}"
+  puts "#{line}"
 
-  cmd = "APPIUM_PORT=#{port} PLATFORM=#{platform} bundle exec cucumber --format pretty --format AllureCucumber::CucumberFormatter --out=allure-results/#{platform}"
   json_output = "logs/#{platform}_results.json"
-  cmd += " --format json --out #{json_output}"
-  Open3.popen2e(cmd) do |stdin, stdout_err, wait_thr|
-    File.open("logs/#{platform}.log", 'w') do |log_file|
-      log_prefix = platform == 'android' ? '[ANDROID]' : '[IOS]'
-      color_prefix = platform == 'android' ? COLOR_GREEN : COLOR_YELLOW
-      output_lines = []
+  cmd = "APPIUM_PORT=#{port} PLATFORM=#{platform} bundle exec cucumber --format pretty --format json --out #{json_output}"
 
-      log_file.puts line
-      log_file.puts "#{log_prefix} 🚀 INICIANDO PRUEBAS #{platform.upcase} EN PUERTO #{port}"
-      log_file.puts line
+  File.open("logs/#{platform}.log", 'w') do |log_file|
+    output_lines = []
+    log_file.puts line
+    log_file.puts "#{log_prefix} 🚀 INICIANDO PRUEBAS #{platform.upcase} EN PUERTO #{port}"
+    log_file.puts line
 
+    Open3.popen2e(cmd) do |_stdin, stdout_err, _wait_thr|
       stdout_err.each do |line|
-        formatted_line = "#{log_prefix} #{line.strip}"
-        output_lines << formatted_line
-        log_file.puts formatted_line
+        formatted = "#{log_prefix} #{line.strip}"
+        output_lines << formatted
+        log_file.puts formatted
       end
-
-      output_lines.each do |line|
-        next if line.strip.empty?
-        highlight = line.match?(/(timed out|NoSuchElementError|Error::|fail|Exception)/i)
-        color = highlight ? COLOR_RED : color_prefix
-        puts "#{color}#{line}#{COLOR_RESET}"
-      end
-
-      summary_lines = output_lines.select { |l| l.match?(/scenarios? \(.+\)/i) || l.match?(/steps? \(.+\)/i) }
-      summary_header = "#{log_prefix} 🧾 RESUMEN DE RESULTADOS"
-      summary_block = [summary_header] + summary_lines
-
-      summary_block.each do |line|
-        color = line.include?("failed") ? COLOR_RED : color_prefix
-        puts "#{color}#{line}#{COLOR_RESET}"
-        File.open("logs/#{platform}.log", 'a') { |log_file| log_file.puts line }
-      end
-
-      log_file.puts "#{log_prefix} ✅ FINALIZADAS PRUEBAS #{platform.upcase}"
-      log_file.puts line
     end
+
+    output_lines.each do |line|
+      next if line.strip.empty?
+      highlight = line.match?(/(timed out|fail|Error::|Exception)/i)
+      color = highlight ? COLOR_RED : color_prefix
+      puts "#{color}#{line}#{COLOR_RESET}"
+    end
+
+    summary = output_lines.select { |l| l.match?(/scenarios? \(.+\)/i) || l.match?(/steps? \(.+\)/i) }
+    puts "#{color_prefix}#{log_prefix} 🧾 RESUMEN DE RESULTADOS#{COLOR_RESET}"
+    summary.each do |l|
+      color = l.include?("failed") ? COLOR_RED : color_prefix
+      puts "#{color}#{l}#{COLOR_RESET}"
+      log_file.puts l
+    end
+
+    log_file.puts "#{log_prefix} ✅ FINALIZADAS PRUEBAS #{platform.upcase}"
+    log_file.puts line
+  end
+end
+
+# ======================
+# Generar reporte HTML
+# ======================
+def generate_html_report
+  template_path = File.join(__dir__, 'plantillas', 'graph_report.html.erb')
+  unless File.exist?(template_path)
+    puts "❌ Plantilla HTML no encontrada en #{template_path}"
+    return
   end
 
-  puts "#{platform == 'android' ? COLOR_GREEN : COLOR_YELLOW}✅ FINALIZADAS PRUEBAS #{platform.upcase}#{COLOR_RESET}"
-  puts line
-end
+  android_json = 'logs/android_results.json'
+  ios_json     = 'logs/ios_results.json'
 
-# Lanzar pruebas en paralelo
-threads = []
+  android_data = File.exist?(android_json) ? JSON.parse(File.read(android_json)) : []
+  ios_data     = File.exist?(ios_json) ? JSON.parse(File.read(ios_json)) : []
 
-threads << Thread.new do
-  start_appium(4723, 'logs/appium_android.log') { run_tests('android', 4723) }
-end
+  erb_template = ERB.new(File.read(template_path))
+  html_result = erb_template.result(binding)
 
-threads << Thread.new do
-  start_appium(4725, 'logs/appium_ios.log') { run_tests('ios', 4725) }
-end
-
-threads.each(&:join)
-
-# Resumen en consola
-def extract_summary(path)
-  File.readlines(path).select { |line| line.match?(/scenarios? \(.+\)/i) || line.match?(/steps? \(.+\)/i) }
-end
-
-android_summary = extract_summary('logs/android.log')
-ios_summary = extract_summary('logs/ios.log')
-
-puts "\n" + ("=" * 60)
-puts "📊 RESUMEN GLOBAL DE RESULTADOS"
-puts ("=" * 60)
-android_color = android_summary.any? { |l| l.include?("failed") } ? COLOR_RED : COLOR_GREEN
-ios_color = ios_summary.any? { |l| l.include?("failed") } ? COLOR_RED : COLOR_YELLOW
-
-puts "#{android_color}[ANDROID]#{COLOR_RESET} #{android_summary.join.strip}"
-puts "#{ios_color}[IOS]#{COLOR_RESET} #{ios_summary.join.strip}"
-puts ("=" * 60)
-puts "\n✅ ¡Ejecución completa para Android e iOS!"
-puts "📝 Revisa los logs en la carpeta /logs"
-
-# Renderizado de plantilla HTML con ERB
-begin
-  template_path = 'plantillas/graph_report.html.erb'
-  template = File.read(template_path)
-  renderer = ERB.new(template)
-
-  android_data = File.exist?('logs/android_results.json') ? JSON.parse(File.read('logs/android_results.json')) : []
-  ios_data = File.exist?('logs/ios_results.json') ? JSON.parse(File.read('logs/ios_results.json')) : []
-
-  android_features, android_scenarios, android_passed = count_summary(android_data)
-  ios_features, ios_scenarios, ios_passed = count_summary(ios_data)
-
-  html_result = renderer.result(binding)
   File.write('logs/TestMobile_Report.html', html_result)
-  puts "📄 Reporte HTML combinado generado en: logs/TestMobile_Report.html"
+  puts "\n📄 Reporte HTML generado en: logs/TestMobile_Report.html"
 rescue => e
-  puts "❌ Error generando el reporte HTML: #{e.message}"
+  puts "\n#{COLOR_RED}❌ Error generando el reporte HTML: #{e.message}#{COLOR_RESET}"
 end
+
+# ======================
+# MAIN
+# ======================
+
+threads = []
+parallel = ENV['PLATFORM'].nil?
+
+if parallel
+  threads << Thread.new do
+    start_appium(4723, 'logs/appium_android.log') { run_tests('android', 4723) }
+  end
+  threads << Thread.new do
+    start_appium(4725, 'logs/appium_ios.log') { run_tests('ios', 4725) }
+  end
+  threads.each(&:join)
+else
+  platform = ENV['PLATFORM']
+  port = ENV['APPIUM_PORT'] || (platform == 'android' ? 4723 : 4725)
+  run_tests(platform, port.to_i)
+end
+
+generate_html_report

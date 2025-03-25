@@ -61,3 +61,5 @@ TestBasicoMobile.iml
 allure-results/android/*
 allure-results/ios/*
 logs/*
+android_log.txt
+ios_log.txt
