@@ -58,3 +58,6 @@ build-iPhoneSimulator/
 .idea
 .DS_Store
 TestBasicoMobile.iml
+allure-results/android/*
+allure-results/ios/*
+logs/*
