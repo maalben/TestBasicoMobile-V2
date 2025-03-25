@@ -1,0 +1,18 @@
+============================================================
+[ANDROID] 🚀 INICIANDO PRUEBAS ANDROID EN PUERTO 4723
+============================================================
+[ANDROID] Using the default profile...
+[ANDROID] Feature: Debug Test
+[ANDROID] 
+[ANDROID] Scenario: Verify user can enter text and submit                # features/features/login.feature:3
+[ANDROID] Given the user is on the login page                          # features/step_definitions/login_steps.rb:11
+[ANDROID] When the user enters "standard_user" into the username field # features/step_definitions/login_steps.rb:16
+[ANDROID] And the user enters "secret_sauce" into the password field   # features/step_definitions/login_steps.rb:20
+[ANDROID] And the user clicks the login button                         # features/step_definitions/login_steps.rb:24
+[ANDROID] Then the user should see the home page                       # features/step_definitions/login_steps.rb:28
+[ANDROID] 
+[ANDROID] 1 scenario (1 passed)
+[ANDROID] 5 steps (5 passed)
+[ANDROID] 0m7.150s
+[ANDROID] ✅ FINALIZADAS PRUEBAS ANDROID
+============================================================
